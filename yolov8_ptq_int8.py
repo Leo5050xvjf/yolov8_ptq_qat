@@ -39,7 +39,7 @@ def collect_stats(model, data_loader, num_batches, device):
         image = image.float()  # uint8 to fp16/32
         image /= 255.0  # 0 - 255 to 0.0 - 1.0
         model(image)
-        if i >= num_batches:
+        if i + 1 >= num_batches:
             break
 
     # Disable calibrators
@@ -101,6 +101,8 @@ def calibrate_model(model, model_name, data_loader, num_calib_batch, calibrator,
 
 
 def load_model(weight, device):
+    if isinstance(weight, (list, tuple)):
+        weight = weight[0]
     yolo = YOLO(weight)
     model = yolo.model
     model.float()
@@ -124,7 +126,7 @@ def prepare_model(calibrator, opt, device):
     quant.replace_to_quantization_module(model, ignore_policy=opt.sensitive_layer)
 
     model.eval()
-    model.cuda()
+    model.to(device)
 
     gs = max(int(model.stride.max()), 32)  # grid size (max stride)
     imgsz, _ = [check_img_size(x, gs) for x in [opt.imgsz, opt.imgsz]]  # verify imgsz are gs-multiples
@@ -132,7 +134,7 @@ def prepare_model(calibrator, opt, device):
     # Calib dataloader
     calib_loader = create_dataloader(calib_path,
                                      imgsz,
-                                     opt.batch_size,
+                                     opt.calib_batch_size,
                                      gs,
                                      hyp=None,
                                      cache=opt.cache,
@@ -165,7 +167,6 @@ def export_onnx(model, onnx_filename, batch_onnx, dynamic_shape, simplify, imgsz
                             input_names=['images'],
                             output_names=['output'],
                             dynamic_axes={'images': {0: 'batch', 2: 'height', 3: 'width'}} if dynamic_shape else None,
-                            enable_onnx_checker=False, 
                             do_constant_folding=True)
 
         print('ONNX export success, saved as %s' % onnx_filename)
@@ -177,6 +178,7 @@ def export_onnx(model, onnx_filename, batch_onnx, dynamic_shape, simplify, imgsz
 
     except Exception as e:
             print(f'{prefix} export failure: {e}')
+            return False
     
     # Checks
     model_onnx = onnx.load(onnx_filename)  # load onnx model
@@ -210,12 +212,12 @@ def export_onnx(model, onnx_filename, batch_onnx, dynamic_shape, simplify, imgsz
 
 def parse_opt():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data', type=str, default=ROOT / '../ultralytics/ultralytics/datasets/coco128.yaml', help='dataset.yaml path')
+    parser.add_argument('--data', type=str, default=ROOT / 'coco128.yaml', help='dataset.yaml path')
     parser.add_argument('--weights', nargs='+', type=str, default="yolov8n.pt", help='model.pt path(s)')
     parser.add_argument('--model-name', '-m', default='yolov8n', help='model name: default yolov5s')
     parser.add_argument('--batch-size', type=int, default=32, help='batch size')
     parser.add_argument('--imgsz', '--img', '--img-size', type=int, default=640, help='inference size (pixels)')
-    parser.add_argument('--device', default='1', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
+    parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--workers', type=int, default=0, help='max dataloader workers (per RANK in DDP mode)')
     parser.add_argument('--cache', type=str, nargs='?', const='ram', help='--cache images in "ram" (default) or "disk"')
 

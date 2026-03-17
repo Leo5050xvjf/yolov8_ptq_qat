@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+runs/
+coco128/
+yolov8n.pt
+yolov8n_ptq_detect.onnx
+weights/yolov8n-max-32.pth
