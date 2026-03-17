@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 runs/
+.yolo-config/
 coco128/
 yolov8n.pt
 yolov8n_ptq_detect.onnx
